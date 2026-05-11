@@ -30,29 +30,30 @@
 <script>
     const scanBtn = document.getElementById('scanBtn');
     const statusDiv = document.getElementById('status');
-    
-    // --- GANTI URL DI BAWAH INI DENGAN URL WEB APP GAS ANDA ---
     const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
-    // Fungsi untuk membunyikan Beep
-    function playBeep(frequency, duration) {
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
+    let isProcessing = false;
 
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+    // FUNGSI BEEP YANG AMAN (LANGSUNG TUTUP KONTEKS)
+    async function playBeep(frequency, duration) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
 
-            oscillator.frequency.value = frequency;
-            oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
 
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + (duration / 1000));
-        } catch (e) {
-            console.log("Audio error: " + e);
-        }
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + (duration / 1000));
+
+        // WAJIB: Tutup koneksi audio setelah bunyi selesai agar HP tidak hang
+        setTimeout(() => {
+            audioCtx.close();
+        }, duration + 100);
     }
 
     scanBtn.addEventListener('click', async () => {
@@ -60,20 +61,16 @@
             try {
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                
-                statusDiv.innerText = "Scanner Aktif! Tempelkan Kartu...";
+                statusDiv.innerText = "Scanner Aktif! Silakan Tempel Kartu...";
                 statusDiv.style.backgroundColor = "#fff3cd";
 
-                ndef.addEventListener("readingerror", () => {
-                    statusDiv.innerText = "Gagal membaca kartu. Coba lagi.";
-                    statusDiv.style.backgroundColor = "#f8d7da";
-                });
-
                 ndef.addEventListener("reading", ({ serialNumber }) => {
+                    if (isProcessing) return; 
+                    
+                    isProcessing = true; 
                     statusDiv.innerText = "Memproses ID: " + serialNumber;
                     statusDiv.style.backgroundColor = "#cce5ff";
 
-                    // Kirim ke Google Apps Script
                     fetch(`${gasUrl}?uid=${serialNumber}`)
                         .then(response => response.text())
                         .then(data => {
@@ -81,30 +78,36 @@
                             
                             if (data.includes("BERHASIL")) {
                                 statusDiv.style.backgroundColor = "#d4edda";
-                                playBeep(880, 200); // Beep Berhasil
+                                playBeep(880, 200);
                             } else if (data.includes("DUPLIKAT")) {
                                 statusDiv.style.backgroundColor = "#fff3cd";
-                                playBeep(440, 500); // Beep Peringatan
+                                playBeep(440, 500);
                             } else {
                                 statusDiv.style.backgroundColor = "#f8d7da";
-                                playBeep(220, 1000); // Beep Gagal
+                                playBeep(220, 1000);
                             }
+                            
+                            // Jeda 3 detik sebelum siap menerima kartu lagi
+                            setTimeout(() => {
+                                isProcessing = false;
+                                statusDiv.innerText = "Scanner Siap! Silakan Tempel Kartu...";
+                                statusDiv.style.backgroundColor = "#fff3cd";
+                            }, 3000); 
                         })
                         .catch(err => {
                             statusDiv.innerText = "Koneksi Error: " + err;
                             statusDiv.style.backgroundColor = "#f8d7da";
+                            isProcessing = false;
                         });
                 });
 
             } catch (error) {
                 statusDiv.innerText = "Error: " + error;
-                statusDiv.style.backgroundColor = "#f8d7da";
             }
         } else {
-            statusDiv.innerText = "NFC tidak didukung. Gunakan Chrome di Android.";
+            statusDiv.innerText = "NFC tidak didukung di Chrome Android ini.";
         }
     });
 </script>
-
 </body>
 </html>
