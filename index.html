@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner NFC Komunitas - Amiza</title>
+    <title>Scanner NFC Komunitas - by Zawawi</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
         .container { max-width: 400px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -24,14 +24,14 @@
     
     <button id="scanBtn" class="btn-scan">AKTIFKAN SCANNER</button>
     
-    <div class="footer">Sistem Absensi v1.0 - Digital Printing Amiza</div>
+    <div class="footer">Sistem Absensi dengan Emoney v1.0 - Digital Project Zawawi</div>
 </div>
 
 <script>
     const scanBtn = document.getElementById('scanBtn');
     const statusDiv = document.getElementById('status');
     // GANTI URL DI BAWAH INI DENGAN URL WEB APP ANDA
-    const gasUrl = "URL_WEB_APP_GAS_ANDA";
+    const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
     scanBtn.addEventListener('click', async () => {
         if ('NDEFReader' in window) {
