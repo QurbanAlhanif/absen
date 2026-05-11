@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner NFC Komunitas - Amiza</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        .container { max-width: 400px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        #status { margin: 20px 0; padding: 15px; border-radius: 8px; font-weight: bold; background: #eee; min-height: 50px; }
+        .btn-scan { background-color: #28a745; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 50px; cursor: pointer; width: 100%; transition: 0.3s; }
+        .btn-scan:hover { background-color: #218838; }
+        .footer { margin-top: 20px; font-size: 0.8em; color: #888; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Scanner Absensi & Iuran</h2>
+    <p>Gunakan HP NFC untuk scan e-money anggota</p>
+    
+    <div id="status">Klik tombol di bawah untuk mulai</div>
+    
+    <button id="scanBtn" class="btn-scan">AKTIFKAN SCANNER</button>
+    
+    <div class="footer">Sistem Absensi v1.0 - Digital Printing Amiza</div>
+</div>
+
+<script>
+    const scanBtn = document.getElementById('scanBtn');
+    const statusDiv = document.getElementById('status');
+    // GANTI URL DI BAWAH INI DENGAN URL WEB APP ANDA
+    const gasUrl = "URL_WEB_APP_GAS_ANDA";
+
+    scanBtn.addEventListener('click', async () => {
+        if ('NDEFReader' in window) {
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                
+                statusDiv.innerText = "Scanner Aktif! Tempelkan Kartu...";
+                statusDiv.style.backgroundColor = "#fff3cd";
+
+                ndef.addEventListener("readingerror", () => {
+                    statusDiv.innerText = "Gagal membaca kartu. Coba tempelkan kembali.";
+                    statusDiv.style.backgroundColor = "#f8d7da";
+                });
+
+                ndef.addEventListener("reading", ({ serialNumber }) => {
+                    statusDiv.innerText = "Sedang Memproses ID: " + serialNumber;
+                    statusDiv.style.backgroundColor = "#cce5ff";
+
+                    // Kirim data ke Google Apps Script menggunakan Fetch API
+                    fetch(`${gasUrl}?uid=${serialNumber}`)
+                        .then(response => response.text())
+                        .then(data => {
+                            statusDiv.innerText = data;
+                            statusDiv.style.backgroundColor = data.includes("BERHASIL") ? "#d4edda" : "#f8d7da";
+                        })
+                        .catch(err => {
+                            statusDiv.innerText = "Koneksi Error: " + err;
+                        });
+                });
+
+            } catch (error) {
+                statusDiv.innerText = "Error: " + error;
+                statusDiv.style.backgroundColor = "#f8d7da";
+            }
+        } else {
+            statusDiv.innerText = "NFC tidak didukung di browser ini. Gunakan Chrome di Android.";
+        }
+    });
+</script>
+
+</body>
+</html>
