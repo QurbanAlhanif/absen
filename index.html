@@ -32,9 +32,8 @@
     const statusDiv = document.getElementById('status');
     const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
-    let isProcessing = false;
-    let lastScanTime = 0;
-    const COOLDOWN_TIME = 5000; // Jeda 5 detik antar scan kartu yang sama
+    // Kunci sakti untuk mencegah duplikasi di sisi browser
+    let processedIDs = new Set(); 
 
     async function playBeep(frequency, duration) {
         try {
@@ -60,23 +59,18 @@
                 
                 statusDiv.innerText = "Scanner Aktif! Silakan Tempel Kartu...";
                 statusDiv.style.backgroundColor = "#fff3cd";
-                scanBtn.disabled = true; // Matikan tombol agar tidak diklik dua kali
-                scanBtn.innerText = "SCANNER ON";
+                scanBtn.disabled = true;
+                scanBtn.innerText = "SCANNER AKTIF";
 
                 ndef.addEventListener("reading", ({ serialNumber }) => {
-                    const now = Date.now();
-
-                    // PENGAMAN 1: Jangan proses jika sedang dalam pengiriman ke GAS
-                    if (isProcessing) return;
-
-                    // PENGAMAN 2: Jangan proses jika kartu ditempel terlalu cepat (kurang dari 5 detik)
-                    if (now - lastScanTime < COOLDOWN_TIME) {
-                        console.log("Scan diabaikan: Terlalu cepat.");
+                    // JURUS TERAKHIR: Cek apakah ID ini sedang dalam antrean proses
+                    if (processedIDs.has(serialNumber)) {
+                        console.log("ID " + serialNumber + " diabaikan karena sedang diproses.");
                         return;
                     }
 
-                    isProcessing = true; 
-                    lastScanTime = now; // Catat waktu scan terakhir
+                    // Tambahkan ID ke dalam daftar "sedang diproses"
+                    processedIDs.add(serialNumber);
 
                     statusDiv.innerText = "Memproses ID: " + serialNumber;
                     statusDiv.style.backgroundColor = "#cce5ff";
@@ -97,17 +91,18 @@
                                 playBeep(220, 1000);
                             }
                             
-                            // Buka kunci setelah jeda agar sistem stabil
+                            // Berikan jeda 5 detik sebelum ID yang sama boleh di-scan lagi
                             setTimeout(() => {
-                                isProcessing = false;
+                                processedIDs.delete(serialNumber); // Hapus ID dari daftar blokir
                                 statusDiv.innerText = "Scanner Siap! Silakan Tempel Kartu...";
                                 statusDiv.style.backgroundColor = "#fff3cd";
-                            }, 3000); 
+                            }, 5000); 
                         })
                         .catch(err => {
                             statusDiv.innerText = "Koneksi Error. Coba lagi.";
                             statusDiv.style.backgroundColor = "#f8d7da";
-                            isProcessing = false;
+                            // Jika error, hapus ID agar bisa dicoba scan lagi
+                            processedIDs.delete(serialNumber);
                         });
                 });
 
