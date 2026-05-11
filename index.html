@@ -32,8 +32,8 @@
     const statusDiv = document.getElementById('status');
     const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
-    // Kunci sakti untuk mencegah duplikasi di sisi browser
-    let processedIDs = new Set(); 
+    // Antrian aktif untuk mencegah pengiriman ganda ID yang sama
+    const activeRequests = new Set();
 
     async function playBeep(frequency, duration) {
         try {
@@ -56,62 +56,51 @@
             try {
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                
                 statusDiv.innerText = "Scanner Aktif! Silakan Tempel Kartu...";
                 statusDiv.style.backgroundColor = "#fff3cd";
                 scanBtn.disabled = true;
-                scanBtn.innerText = "SCANNER AKTIF";
+                scanBtn.innerText = "SCANNER RUNNING";
 
-                ndef.addEventListener("reading", ({ serialNumber }) => {
-                    // JURUS TERAKHIR: Cek apakah ID ini sedang dalam antrean proses
-                    if (processedIDs.has(serialNumber)) {
-                        console.log("ID " + serialNumber + " diabaikan karena sedang diproses.");
-                        return;
-                    }
+                ndef.addEventListener("reading", async ({ serialNumber }) => {
+                    // FILTER ATOMIK: Jika ID sedang diproses, abaikan sinyal hardware berikutnya
+                    if (activeRequests.has(serialNumber)) return;
+                    
+                    // LOCK ID secara instan
+                    activeRequests.add(serialNumber);
 
-                    // Tambahkan ID ke dalam daftar "sedang diproses"
-                    processedIDs.add(serialNumber);
-
-                    statusDiv.innerText = "Memproses ID: " + serialNumber;
+                    statusDiv.innerText = "Memproses: " + serialNumber;
                     statusDiv.style.backgroundColor = "#cce5ff";
 
-                    fetch(`${gasUrl}?uid=${serialNumber}`)
-                        .then(response => response.text())
-                        .then(data => {
-                            statusDiv.innerText = data;
-                            
-                            if (data.includes("BERHASIL")) {
-                                statusDiv.style.backgroundColor = "#d4edda";
-                                playBeep(880, 200);
-                            } else if (data.includes("DUPLIKAT")) {
-                                statusDiv.style.backgroundColor = "#fff3cd";
-                                playBeep(440, 500);
-                            } else {
-                                statusDiv.style.backgroundColor = "#f8d7da";
-                                playBeep(220, 1000);
-                            }
-                            
-                            // Berikan jeda 5 detik sebelum ID yang sama boleh di-scan lagi
-                            setTimeout(() => {
-                                processedIDs.delete(serialNumber); // Hapus ID dari daftar blokir
-                                statusDiv.innerText = "Scanner Siap! Silakan Tempel Kartu...";
-                                statusDiv.style.backgroundColor = "#fff3cd";
-                            }, 5000); 
-                        })
-                        .catch(err => {
-                            statusDiv.innerText = "Koneksi Error. Coba lagi.";
+                    try {
+                        const response = await fetch(`${gasUrl}?uid=${serialNumber}`);
+                        const data = await response.text();
+                        
+                        statusDiv.innerText = data;
+                        
+                        if (data.includes("BERHASIL")) {
+                            statusDiv.style.backgroundColor = "#d4edda";
+                            playBeep(880, 200);
+                        } else if (data.includes("DUPLIKAT")) {
+                            statusDiv.style.backgroundColor = "#fff3cd";
+                            playBeep(440, 500);
+                        } else {
                             statusDiv.style.backgroundColor = "#f8d7da";
-                            // Jika error, hapus ID agar bisa dicoba scan lagi
-                            processedIDs.delete(serialNumber);
-                        });
+                            playBeep(220, 1000);
+                        }
+                    } catch (err) {
+                        statusDiv.innerText = "Error Koneksi!";
+                        statusDiv.style.backgroundColor = "#f8d7da";
+                    } finally {
+                        // Jeda 5 detik sebelum ID yang sama boleh masuk lagi (Debounce Hardware)
+                        setTimeout(() => {
+                            activeRequests.delete(serialNumber);
+                            statusDiv.innerText = "Scanner Siap! Silakan Tempel Kartu...";
+                            statusDiv.style.backgroundColor = "#fff3cd";
+                        }, 5000);
+                    }
                 });
-
-            } catch (error) {
-                statusDiv.innerText = "Error: " + error;
-            }
-        } else {
-            statusDiv.innerText = "Browser tidak mendukung NFC.";
-        }
+            } catch (error) { statusDiv.innerText = "Error: " + error; }
+        } else { statusDiv.innerText = "NFC tidak didukung."; }
     });
 </script>
 </body>
