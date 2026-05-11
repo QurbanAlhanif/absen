@@ -33,27 +33,23 @@
     const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
     let isProcessing = false;
+    let lastScanTime = 0;
+    const COOLDOWN_TIME = 5000; // Jeda 5 detik antar scan kartu yang sama
 
-    // FUNGSI BEEP YANG AMAN (LANGSUNG TUTUP KONTEKS)
     async function playBeep(frequency, duration) {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-
-        oscillator.frequency.value = frequency;
-        oscillator.type = 'sine';
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + (duration / 1000));
-
-        // WAJIB: Tutup koneksi audio setelah bunyi selesai agar HP tidak hang
-        setTimeout(() => {
-            audioCtx.close();
-        }, duration + 100);
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + (duration / 1000));
+            setTimeout(() => { audioCtx.close(); }, duration + 100);
+        } catch (e) { console.error(e); }
     }
 
     scanBtn.addEventListener('click', async () => {
@@ -61,13 +57,27 @@
             try {
                 const ndef = new NDEFReader();
                 await ndef.scan();
+                
                 statusDiv.innerText = "Scanner Aktif! Silakan Tempel Kartu...";
                 statusDiv.style.backgroundColor = "#fff3cd";
+                scanBtn.disabled = true; // Matikan tombol agar tidak diklik dua kali
+                scanBtn.innerText = "SCANNER ON";
 
                 ndef.addEventListener("reading", ({ serialNumber }) => {
-                    if (isProcessing) return; 
-                    
+                    const now = Date.now();
+
+                    // PENGAMAN 1: Jangan proses jika sedang dalam pengiriman ke GAS
+                    if (isProcessing) return;
+
+                    // PENGAMAN 2: Jangan proses jika kartu ditempel terlalu cepat (kurang dari 5 detik)
+                    if (now - lastScanTime < COOLDOWN_TIME) {
+                        console.log("Scan diabaikan: Terlalu cepat.");
+                        return;
+                    }
+
                     isProcessing = true; 
+                    lastScanTime = now; // Catat waktu scan terakhir
+
                     statusDiv.innerText = "Memproses ID: " + serialNumber;
                     statusDiv.style.backgroundColor = "#cce5ff";
 
@@ -87,7 +97,7 @@
                                 playBeep(220, 1000);
                             }
                             
-                            // Jeda 3 detik sebelum siap menerima kartu lagi
+                            // Buka kunci setelah jeda agar sistem stabil
                             setTimeout(() => {
                                 isProcessing = false;
                                 statusDiv.innerText = "Scanner Siap! Silakan Tempel Kartu...";
@@ -95,7 +105,7 @@
                             }, 3000); 
                         })
                         .catch(err => {
-                            statusDiv.innerText = "Koneksi Error: " + err;
+                            statusDiv.innerText = "Koneksi Error. Coba lagi.";
                             statusDiv.style.backgroundColor = "#f8d7da";
                             isProcessing = false;
                         });
@@ -105,7 +115,7 @@
                 statusDiv.innerText = "Error: " + error;
             }
         } else {
-            statusDiv.innerText = "NFC tidak didukung di Chrome Android ini.";
+            statusDiv.innerText = "Browser tidak mendukung NFC.";
         }
     });
 </script>
