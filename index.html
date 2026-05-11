@@ -8,8 +8,8 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
         .container { max-width: 400px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         h2 { color: #333; }
-        #status { margin: 20px 0; padding: 15px; border-radius: 8px; font-weight: bold; background: #eee; min-height: 50px; }
-        .btn-scan { background-color: #28a745; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 50px; cursor: pointer; width: 100%; transition: 0.3s; }
+        #status { margin: 20px 0; padding: 15px; border-radius: 8px; font-weight: bold; background: #eee; min-height: 50px; transition: 0.3s; }
+        .btn-scan { background-color: #28a745; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 50px; cursor: pointer; width: 100%; transition: 0.3s; font-weight: bold; }
         .btn-scan:hover { background-color: #218838; }
         .footer { margin-top: 20px; font-size: 0.8em; color: #888; }
     </style>
@@ -27,40 +27,84 @@
     <div class="footer">Sistem Absensi dengan Emoney v1.0 - Digital Project Zawawi</div>
 </div>
 
-// Fungsi untuk membunyikan Beep
-function playBeep(frequency, duration) {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+<script>
+    const scanBtn = document.getElementById('scanBtn');
+    const statusDiv = document.getElementById('status');
+    
+    // --- GANTI URL DI BAWAH INI DENGAN URL WEB APP GAS ANDA ---
+    const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    // Fungsi untuk membunyikan Beep
+    function playBeep(frequency, duration) {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
 
-    oscillator.frequency.value = frequency; // Frekuensi nada
-    oscillator.type = 'sine';
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
 
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + (duration / 1000));
-}
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
-// Update bagian Fetch di dalam ndef.addEventListener("reading", ...)
-fetch(`${gasUrl}?uid=${serialNumber}`)
-    .then(response => response.text())
-    .then(data => {
-        statusDiv.innerText = data;
-        
-        if (data.includes("BERHASIL")) {
-            statusDiv.style.backgroundColor = "#d4edda";
-            playBeep(880, 200); // Suara tinggi (Berhasil)
-        } else if (data.includes("DUPLIKAT")) {
-            statusDiv.style.backgroundColor = "#fff3cd";
-            playBeep(440, 500); // Suara rendah agak panjang (Peringatan)
-        } else {
-            statusDiv.style.backgroundColor = "#f8d7da";
-            playBeep(220, 1000); // Suara sangat rendah (Gagal)
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + (duration / 1000));
+        } catch (e) {
+            console.log("Audio error: " + e);
         }
-    })
+    }
+
+    scanBtn.addEventListener('click', async () => {
+        if ('NDEFReader' in window) {
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                
+                statusDiv.innerText = "Scanner Aktif! Tempelkan Kartu...";
+                statusDiv.style.backgroundColor = "#fff3cd";
+
+                ndef.addEventListener("readingerror", () => {
+                    statusDiv.innerText = "Gagal membaca kartu. Coba lagi.";
+                    statusDiv.style.backgroundColor = "#f8d7da";
+                });
+
+                ndef.addEventListener("reading", ({ serialNumber }) => {
+                    statusDiv.innerText = "Memproses ID: " + serialNumber;
+                    statusDiv.style.backgroundColor = "#cce5ff";
+
+                    // Kirim ke Google Apps Script
+                    fetch(`${gasUrl}?uid=${serialNumber}`)
+                        .then(response => response.text())
+                        .then(data => {
+                            statusDiv.innerText = data;
+                            
+                            if (data.includes("BERHASIL")) {
+                                statusDiv.style.backgroundColor = "#d4edda";
+                                playBeep(880, 200); // Beep Berhasil
+                            } else if (data.includes("DUPLIKAT")) {
+                                statusDiv.style.backgroundColor = "#fff3cd";
+                                playBeep(440, 500); // Beep Peringatan
+                            } else {
+                                statusDiv.style.backgroundColor = "#f8d7da";
+                                playBeep(220, 1000); // Beep Gagal
+                            }
+                        })
+                        .catch(err => {
+                            statusDiv.innerText = "Koneksi Error: " + err;
+                            statusDiv.style.backgroundColor = "#f8d7da";
+                        });
+                });
+
+            } catch (error) {
+                statusDiv.innerText = "Error: " + error;
+                statusDiv.style.backgroundColor = "#f8d7da";
+            }
+        } else {
+            statusDiv.innerText = "NFC tidak didukung. Gunakan Chrome di Android.";
+        }
+    });
+</script>
 
 </body>
 </html>
