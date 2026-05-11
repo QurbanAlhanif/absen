@@ -27,51 +27,40 @@
     <div class="footer">Sistem Absensi dengan Emoney v1.0 - Digital Project Zawawi</div>
 </div>
 
-<script>
-    const scanBtn = document.getElementById('scanBtn');
-    const statusDiv = document.getElementById('status');
-    // GANTI URL DI BAWAH INI DENGAN URL WEB APP ANDA
-    const gasUrl = "https://script.google.com/macros/s/AKfycbwsCznQSb3w0bz655NPPYqVtZxCe4Lf8SAYgYqTXXoz5GU8eowvJ1ewrhE8RobThBtzAg/exec";
+// Fungsi untuk membunyikan Beep
+function playBeep(frequency, duration) {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
 
-    scanBtn.addEventListener('click', async () => {
-        if ('NDEFReader' in window) {
-            try {
-                const ndef = new NDEFReader();
-                await ndef.scan();
-                
-                statusDiv.innerText = "Scanner Aktif! Tempelkan Kartu...";
-                statusDiv.style.backgroundColor = "#fff3cd";
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
 
-                ndef.addEventListener("readingerror", () => {
-                    statusDiv.innerText = "Gagal membaca kartu. Coba tempelkan kembali.";
-                    statusDiv.style.backgroundColor = "#f8d7da";
-                });
+    oscillator.frequency.value = frequency; // Frekuensi nada
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
 
-                ndef.addEventListener("reading", ({ serialNumber }) => {
-                    statusDiv.innerText = "Sedang Memproses ID: " + serialNumber;
-                    statusDiv.style.backgroundColor = "#cce5ff";
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + (duration / 1000));
+}
 
-                    // Kirim data ke Google Apps Script menggunakan Fetch API
-                    fetch(`${gasUrl}?uid=${serialNumber}`)
-                        .then(response => response.text())
-                        .then(data => {
-                            statusDiv.innerText = data;
-                            statusDiv.style.backgroundColor = data.includes("BERHASIL") ? "#d4edda" : "#f8d7da";
-                        })
-                        .catch(err => {
-                            statusDiv.innerText = "Koneksi Error: " + err;
-                        });
-                });
-
-            } catch (error) {
-                statusDiv.innerText = "Error: " + error;
-                statusDiv.style.backgroundColor = "#f8d7da";
-            }
+// Update bagian Fetch di dalam ndef.addEventListener("reading", ...)
+fetch(`${gasUrl}?uid=${serialNumber}`)
+    .then(response => response.text())
+    .then(data => {
+        statusDiv.innerText = data;
+        
+        if (data.includes("BERHASIL")) {
+            statusDiv.style.backgroundColor = "#d4edda";
+            playBeep(880, 200); // Suara tinggi (Berhasil)
+        } else if (data.includes("DUPLIKAT")) {
+            statusDiv.style.backgroundColor = "#fff3cd";
+            playBeep(440, 500); // Suara rendah agak panjang (Peringatan)
         } else {
-            statusDiv.innerText = "NFC tidak didukung di browser ini. Gunakan Chrome di Android.";
+            statusDiv.style.backgroundColor = "#f8d7da";
+            playBeep(220, 1000); // Suara sangat rendah (Gagal)
         }
-    });
-</script>
+    })
 
 </body>
 </html>
